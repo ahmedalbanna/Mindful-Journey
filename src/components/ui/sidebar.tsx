@@ -8,7 +8,7 @@ import { PanelLeft } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { Button, buttonVariants, type ButtonProps } from "@/components/ui/button";
+import { Button, buttonVariants, type ButtonProps } from "@/components/ui/button"; // ButtonProps includes asChild
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
@@ -254,11 +254,9 @@ const SidebarTrigger = React.forwardRef<
 >(({
   className,
   onClick,
-  children,
+  children: childrenFromCaller,
   asChild = false,
-  variant = "ghost", // Default variant for SidebarTrigger's own button look
-  size = "icon",   // Default size for SidebarTrigger's own button look
-  ...props
+  ...props // other props passed to SidebarTrigger
 }, ref) => {
   const { toggleSidebar } = useSidebar();
 
@@ -267,30 +265,31 @@ const SidebarTrigger = React.forwardRef<
     toggleSidebar();
   };
 
-  if (asChild) {
+  if (asChild && childrenFromCaller) {
     return (
       <Slot
         ref={ref}
-        data-sidebar="trigger"
         onClick={handleClick}
-        // Apply styling expected for a trigger, child can override/merge
-        className={cn(buttonVariants({ variant, size }), "h-7 w-7", className)}
+        className={className}
         {...props}
       >
-        {children}
+        {childrenFromCaller}
       </Slot>
     );
   }
 
+  // Default rendering:
+  // Ensure 'asChild' from props (meant for SidebarTrigger itself) is not passed to this internal Button.
+  const { asChild: _ignoredAsChildFromProps, ...otherPropsForInternalButton } = props;
+
   return (
     <Button
       ref={ref}
-      data-sidebar="trigger"
-      variant={variant}
-      size={size}
+      variant="ghost"
+      size="icon"
       className={cn("h-7 w-7", className)}
       onClick={handleClick}
-      {...props}
+      {...otherPropsForInternalButton} // Pass only relevant other props
     >
       <PanelLeft />
       <span className="sr-only">Toggle Sidebar</span>
@@ -548,16 +547,16 @@ const sidebarMenuButtonVariants = cva(
 )
 
 const SidebarMenuButton = React.forwardRef<
-  HTMLElement, // Can be button or span (when asChild is true and Link provides an <a>)
-  ButtonProps // Still takes ButtonProps, including asChild
+  HTMLButtonElement,
+  ButtonProps & { isActive?: boolean }
 >(({
   className,
   variant,
   size,
   isActive,
-  children: buttonChildren, // Renamed to avoid clash with children prop for asChild logic
-  asChild: isAsChild = false, // Use a different name for clarity
-  ...props
+  children: buttonChildren,
+  asChild: receivedAsChild = false,
+  ...restProps
 }, ref) => {
   const effectiveClassName = cn(
     sidebarMenuButtonVariants({ variant, size, className })
@@ -569,30 +568,33 @@ const SidebarMenuButton = React.forwardRef<
     "data-active": isActive ?? undefined,
   };
 
-  if (isAsChild) {
-    // When SidebarMenuButton is a slot, it should render a single element
-    // that can be cloned by its parent (e.g., Link's Slot).
-    // This element will wrap the button's actual content (icon and text).
+  // If a parent (like Link) uses SidebarMenuButton with asChild,
+  // SidebarMenuButton should render a concrete element for the parent's Slot.
+  if (receivedAsChild) {
+    // Ensure we don't pass 'asChild' down to the DOM element if it came via restProps
+    const { asChild: _internalAsChild, ...otherPropsFromSlot } = restProps;
     return (
-      <button // Render a concrete element for the parent Slot to take over
-        ref={ref as React.ForwardedRef<HTMLButtonElement>} // Cast ref; parent Slot might provide a more specific ref
+      <button
+        ref={ref}
         className={effectiveClassName}
         {...dataAttributes}
-        {...props} // Spread props from parent Slot (href, onClick from Link etc.)
+        {...otherPropsFromSlot} // Spread props from parent Slot (href, onClick, etc.)
       >
         {buttonChildren}
       </button>
     );
   }
 
-  // Default rendering as a standalone button
+  // Default rendering: SidebarMenuButton acts as a normal button.
+  // Ensure 'asChild' from restProps is not passed to this DOM button.
+  const { asChild: _leakedAsChild, ...finalRestProps } = restProps;
   return (
     <button
       type="button"
-      ref={ref as React.ForwardedRef<HTMLButtonElement>}
+      ref={ref}
       className={effectiveClassName}
       {...dataAttributes}
-      {...props}
+      {...finalRestProps}
     >
       {buttonChildren}
     </button>
