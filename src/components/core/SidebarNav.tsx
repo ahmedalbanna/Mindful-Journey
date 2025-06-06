@@ -5,7 +5,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { NAV_ITEMS, APP_NAME } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import { SidebarMenu, SidebarMenuItem, SidebarMenuButton, useSidebar } from '@/components/ui/sidebar';
+import {
+  SidebarMenu,
+  SidebarMenuItem,
+  useSidebar,
+  sidebarMenuButtonVariants, // Import variants for styling Link
+} from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Leaf } from 'lucide-react';
 
@@ -20,35 +25,52 @@ export function SidebarNav() {
         <h1 className="text-xl font-headline font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">{APP_NAME}</h1>
       </div>
       <SidebarMenu className="flex-1 p-2">
-        {NAV_ITEMS.map((item) => (
-          <SidebarMenuItem key={item.href}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link href={item.href} asChild>
-                  <SidebarMenuButton
-                    className={cn(
-                      "w-full justify-start",
-                      pathname === item.href && "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
-                    )}
-                    isActive={pathname === item.href}
-                  >
-                    <item.icon className="h-5 w-5" />
-                    <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
-                  </SidebarMenuButton>
-                </Link>
-              </TooltipTrigger>
-              { (state === "collapsed" || isMobile) && (
-                <TooltipContent
-                  side="right"
-                  align="center"
-                  className="font-body"
-                >
-                  {item.title}
-                </TooltipContent>
+        {NAV_ITEMS.map((item) => {
+          const isActive = pathname === item.href;
+
+          // Define the core link content with styling
+          const linkElement = (
+            <Link
+              href={item.href}
+              className={cn(
+                sidebarMenuButtonVariants({ variant: 'default', size: 'default' }),
+                "w-full justify-start", // Keep original specific styles
+                // isActive is handled by data-active in sidebarMenuButtonVariants
               )}
-            </Tooltip>
-          </SidebarMenuItem>
-        ))}
+              data-active={isActive ? 'true' : undefined} // Pass data-active for styling
+            >
+              <item.icon className="h-5 w-5 shrink-0" />
+              <span className="truncate group-data-[collapsible=icon]:hidden">{item.title}</span>
+            </Link>
+          );
+
+          // Conditionally wrap with Tooltip
+          if (state === "collapsed" || isMobile) {
+            return (
+              <SidebarMenuItem key={item.href}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    {linkElement}
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="right"
+                    align="center"
+                    className="font-body"
+                  >
+                    {item.title}
+                  </TooltipContent>
+                </Tooltip>
+              </SidebarMenuItem>
+            );
+          }
+
+          // Render without Tooltip
+          return (
+            <SidebarMenuItem key={item.href}>
+              {linkElement}
+            </SidebarMenuItem>
+          );
+        })}
       </SidebarMenu>
       <div className="p-4 border-t border-sidebar-border mt-auto">
         <p className="text-xs text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">
