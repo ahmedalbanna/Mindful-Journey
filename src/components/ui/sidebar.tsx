@@ -8,7 +8,7 @@ import { PanelLeft } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants, type ButtonProps } from "@/components/ui/button";
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
@@ -249,30 +249,56 @@ const Sidebar = React.forwardRef<
 Sidebar.displayName = "Sidebar"
 
 const SidebarTrigger = React.forwardRef<
-  React.ElementRef<typeof Button>,
-  React.ComponentProps<typeof Button>
->(({ className, onClick, ...props }, ref) => {
-  const { toggleSidebar } = useSidebar()
+  HTMLButtonElement,
+  ButtonProps
+>(({
+  className,
+  onClick,
+  children,
+  asChild = false,
+  variant = "ghost", // Default variant for SidebarTrigger's own button look
+  size = "icon",   // Default size for SidebarTrigger's own button look
+  ...props
+}, ref) => {
+  const { toggleSidebar } = useSidebar();
+
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    onClick?.(event);
+    toggleSidebar();
+  };
+
+  if (asChild) {
+    return (
+      <Slot
+        ref={ref}
+        data-sidebar="trigger"
+        onClick={handleClick}
+        // Apply styling expected for a trigger, child can override/merge
+        className={cn(buttonVariants({ variant, size }), "h-7 w-7", className)}
+        {...props}
+      >
+        {children}
+      </Slot>
+    );
+  }
 
   return (
     <Button
       ref={ref}
       data-sidebar="trigger"
-      variant="ghost"
-      size="icon"
+      variant={variant}
+      size={size}
       className={cn("h-7 w-7", className)}
-      onClick={(event) => {
-        onClick?.(event)
-        toggleSidebar()
-      }}
+      onClick={handleClick}
       {...props}
     >
       <PanelLeft />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
-  )
-})
-SidebarTrigger.displayName = "SidebarTrigger"
+  );
+});
+SidebarTrigger.displayName = "SidebarTrigger";
+
 
 const SidebarRail = React.forwardRef<
   HTMLButtonElement,
@@ -522,25 +548,20 @@ const sidebarMenuButtonVariants = cva(
 )
 
 const SidebarMenuButton = React.forwardRef<
-  HTMLButtonElement, // Consistently a button element or what Slot becomes
-  React.ButtonHTMLAttributes<HTMLButtonElement> & {
-    isActive?: boolean;
-  } & VariantProps<typeof sidebarMenuButtonVariants> & {
-    asChild?: boolean; 
-  }
+  HTMLElement, // Can be button or span (when asChild is true and Link provides an <a>)
+  ButtonProps // Still takes ButtonProps, including asChild
 >(({
-  className, 
+  className,
   variant,
   size,
   isActive,
-  children, 
-  asChild = false, 
-  ...props 
+  children: buttonChildren, // Renamed to avoid clash with children prop for asChild logic
+  asChild: isAsChild = false, // Use a different name for clarity
+  ...props
 }, ref) => {
-  const baseClasses = sidebarMenuButtonVariants({ variant, size, className });
-  // data-[active=true] is handled by CVA, so no need for manual isActive class merge here if CVA is set up for it
-  // If CVA doesn't handle `isActive` directly for styling, use cn() or ensure data-active is used by CSS
-  const effectiveClassName = cn(baseClasses); // className from props is merged by CVA
+  const effectiveClassName = cn(
+    sidebarMenuButtonVariants({ variant, size, className })
+  );
 
   const dataAttributes = {
     "data-sidebar": "menu-button",
@@ -548,38 +569,34 @@ const SidebarMenuButton = React.forwardRef<
     "data-active": isActive ?? undefined,
   };
 
-  const Comp = asChild ? Slot : "button";
-
-  if (asChild) {
-    // When asChild is true, SidebarMenuButton itself becomes a Slot.
-    // It passes its children (icon and text span) to this Slot.
-    // This Slot then expects a single child from these children, which is where the error occurs.
-    // Instead, if asChild is true, this component should render a single, stylable DOM element
-    // that the PARENT Slot (e.g., from Link or TooltipTrigger) can clone.
+  if (isAsChild) {
+    // When SidebarMenuButton is a slot, it should render a single element
+    // that can be cloned by its parent (e.g., Link's Slot).
+    // This element will wrap the button's actual content (icon and text).
     return (
-      <button // Render a button that the parent Slot can take over
-        ref={ref}
+      <button // Render a concrete element for the parent Slot to take over
+        ref={ref as React.ForwardedRef<HTMLButtonElement>} // Cast ref; parent Slot might provide a more specific ref
         className={effectiveClassName}
         {...dataAttributes}
-        {...props} // Spread props from parent Slot (href, onClick, trigger handlers)
+        {...props} // Spread props from parent Slot (href, onClick from Link etc.)
       >
-        {children} {/* The icon and text span */}
-      </button>
-    );
-  } else {
-    // Rendering a standalone button
-    return (
-      <button
-        type="button"
-        ref={ref}
-        className={effectiveClassName}
-        {...dataAttributes}
-        {...props} // Spread any direct props like onClick
-      >
-        {children}
+        {buttonChildren}
       </button>
     );
   }
+
+  // Default rendering as a standalone button
+  return (
+    <button
+      type="button"
+      ref={ref as React.ForwardedRef<HTMLButtonElement>}
+      className={effectiveClassName}
+      {...dataAttributes}
+      {...props}
+    >
+      {buttonChildren}
+    </button>
+  );
 });
 SidebarMenuButton.displayName = "SidebarMenuButton"
 
@@ -751,3 +768,5 @@ export {
   SidebarTrigger,
   useSidebar,
 }
+
+    
