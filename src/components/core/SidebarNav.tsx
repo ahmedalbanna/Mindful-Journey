@@ -1,14 +1,17 @@
+
 "use client";
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { NAV_ITEMS, APP_NAME } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import { SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarGroupLabel } from '@/components/ui/sidebar';
+import { SidebarMenu, SidebarMenuItem, SidebarMenuButton, useSidebar } from '@/components/ui/sidebar';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Leaf } from 'lucide-react';
 
 export function SidebarNav() {
   const pathname = usePathname();
+  const { state, isMobile } = useSidebar();
 
   return (
     <nav className="flex flex-col h-full">
@@ -19,19 +22,31 @@ export function SidebarNav() {
       <SidebarMenu className="flex-1 p-2">
         {NAV_ITEMS.map((item) => (
           <SidebarMenuItem key={item.href}>
-            <Link href={item.href} passHref legacyBehavior>
-              <SidebarMenuButton
-                className={cn(
-                  "w-full justify-start",
-                  pathname === item.href && "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
-                )}
-                isActive={pathname === item.href}
-                tooltip={{ children: item.title, className: "font-body" }}
-              >
-                <item.icon className="h-5 w-5" />
-                <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
-              </SidebarMenuButton>
-            </Link>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link href={item.href} asChild>
+                  <SidebarMenuButton
+                    className={cn(
+                      "w-full justify-start",
+                      pathname === item.href && "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
+                    )}
+                    isActive={pathname === item.href}
+                  >
+                    <item.icon className="h-5 w-5" />
+                    <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
+                  </SidebarMenuButton>
+                </Link>
+              </TooltipTrigger>
+              { (state === "collapsed" || isMobile) && (
+                <TooltipContent
+                  side="right"
+                  align="center"
+                  className="font-body"
+                >
+                  {item.title}
+                </TooltipContent>
+              )}
+            </Tooltip>
           </SidebarMenuItem>
         ))}
       </SidebarMenu>
