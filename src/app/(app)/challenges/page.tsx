@@ -1,3 +1,4 @@
+
 "use client";
 
 import { PageHeader } from '@/components/core/PageHeader';
@@ -7,31 +8,56 @@ import useLocalStorage from '@/hooks/useLocalStorage';
 import type { Challenge, RewardState } from '@/types';
 import { Trophy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { RewardDisplay } from '@/components/features/rewards/RewardDisplay'; // Added import
+import { RewardDisplay } from '@/components/features/rewards/RewardDisplay';
+
+type ChallengeCompletionState = { id: string; completed: boolean };
 
 export default function ChallengesPage() {
-  const [challenges, setChallenges] = useLocalStorage<Challenge[]>('mindfulJourneyChallenges', CHALLENGES_DATA);
+  const [challengeCompletionStates, setChallengeCompletionStates] = useLocalStorage<ChallengeCompletionState[]>(
+    'mindfulJourneyChallengesCompletion',
+    CHALLENGES_DATA.map(c => ({ id: c.id, completed: c.completed }))
+  );
   const [rewards, setRewards] = useLocalStorage<RewardState>('mindfulJourneyRewards', { points: 0 });
   const { toast } = useToast();
 
+  const challengesForDisplay: Challenge[] = CHALLENGES_DATA.map(masterChallenge => {
+    const completionState = challengeCompletionStates.find(s => s.id === masterChallenge.id);
+    return {
+      ...masterChallenge,
+      completed: completionState ? completionState.completed : masterChallenge.completed,
+    };
+  });
+
   const handleToggleChallengeComplete = (challengeId: string) => {
-    const challengeIndex = challenges.findIndex(c => c.id === challengeId);
-    if (challengeIndex === -1) return;
+    let newPoints = rewards.points;
+    let toastTitle = "";
+    let toastDescription = "";
 
-    const oldChallengeState = challenges[challengeIndex].completed;
-    const updatedChallenges = challenges.map(c =>
-      c.id === challengeId ? { ...c, completed: !c.completed } : c
-    );
-    setChallenges(updatedChallenges);
+    const challenge = challengesForDisplay.find(c => c.id === challengeId);
+    if (!challenge) return;
 
-    const challenge = updatedChallenges[challengeIndex];
-    if (challenge.completed && !oldChallengeState) { // Completed just now
-      setRewards(prevRewards => ({ points: prevRewards.points + challenge.points }));
-      toast({ title: "Challenge Completed!", description: `You earned ${challenge.points} points.` });
-    } else if (!challenge.completed && oldChallengeState) { // Uncompleted just now
-      setRewards(prevRewards => ({ points: Math.max(0, prevRewards.points - challenge.points) }));
-      toast({ title: "Challenge Undone", description: `Points adjusted.` });
+    const currentCompletionState = challengeCompletionStates.find(s => s.id === challengeId);
+    const oldCompletedStatus = currentCompletionState ? currentCompletionState.completed : false;
+    const newCompletedStatus = !oldCompletedStatus;
+
+    if (newCompletedStatus) { // Challenge completed just now
+      newPoints += challenge.points;
+      toastTitle = "Challenge Completed!";
+      toastDescription = `You earned ${challenge.points} points.`;
+    } else { // Challenge uncompleted just now
+      newPoints = Math.max(0, newPoints - challenge.points);
+      toastTitle = "Challenge Undone";
+      toastDescription = `Points adjusted.`;
     }
+    
+    setChallengeCompletionStates(prevStates =>
+      prevStates.map(s =>
+        s.id === challengeId ? { ...s, completed: newCompletedStatus } : s
+      )
+    );
+    
+    setRewards({ points: newPoints });
+    toast({ title: toastTitle, description: toastDescription });
   };
 
 
@@ -46,7 +72,7 @@ export default function ChallengesPage() {
         <RewardDisplay points={rewards.points} />
       </section>
       <section>
-        <ChallengeList challenges={challenges} onToggleComplete={handleToggleChallengeComplete} />
+        <ChallengeList challenges={challengesForDisplay} onToggleComplete={handleToggleChallengeComplete} />
       </section>
     </div>
   );

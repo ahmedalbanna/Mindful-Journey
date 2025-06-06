@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -12,9 +13,14 @@ import useLocalStorage from '@/hooks/useLocalStorage';
 import { LayoutDashboard } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+type ChallengeCompletionState = { id: string; completed: boolean };
+
 export default function DashboardPage() {
   const [guidedSessions, setGuidedSessions] = useState<GuidedSession[]>([]);
-  const [challenges, setChallenges] = useLocalStorage<Challenge[]>('mindfulJourneyChallenges', CHALLENGES_DATA);
+  const [challengeCompletionStates, setChallengeCompletionStates] = useLocalStorage<ChallengeCompletionState[]>(
+    'mindfulJourneyChallengesCompletion', // Use the new key
+    CHALLENGES_DATA.map(c => ({ id: c.id, completed: c.completed }))
+  );
   const [rewards, setRewards] = useLocalStorage<RewardState>('mindfulJourneyRewards', { points: 0 });
   const { toast } = useToast();
 
@@ -22,29 +28,44 @@ export default function DashboardPage() {
     setGuidedSessions(GUIDED_SESSIONS_DATA);
   }, []);
 
-  const handleToggleChallengeComplete = (challengeId: string) => {
-    const updatedChallenges = challenges.map(c => 
-      c.id === challengeId ? { ...c, completed: !c.completed } : c
-    );
-    setChallenges(updatedChallenges);
+  const challengesForDisplay: Challenge[] = CHALLENGES_DATA.map(masterChallenge => {
+    const completionState = challengeCompletionStates.find(s => s.id === masterChallenge.id);
+    return {
+      ...masterChallenge,
+      completed: completionState ? completionState.completed : masterChallenge.completed,
+    };
+  });
 
-    const challenge = updatedChallenges.find(c => c.id === challengeId);
-    if (challenge) {
-      if (challenge.completed) {
-        setRewards(prevRewards => ({ points: prevRewards.points + challenge.points }));
-        toast({ title: "Challenge Completed!", description: `You earned ${challenge.points} points.` });
-      } else {
-        // Only deduct if points were previously awarded for this specific completion
-        const originalChallenge = CHALLENGES_DATA.find(c => c.id === challengeId);
-        if(originalChallenge && challenges.find(c=>c.id === challengeId)?.completed === false){ // Check if it was completed before this toggle
-           // This logic is simplified. A robust system would track individual completions.
-        }
-        // For simplicity, let's assume points are removed if uncompleted.
-        // A more complex system would be needed to prevent point exploits.
-        setRewards(prevRewards => ({ points: Math.max(0, prevRewards.points - challenge.points) }));
-        toast({ title: "Challenge Undone", description: `Points adjusted.` });
-      }
+  const handleToggleChallengeComplete = (challengeId: string) => {
+    let newPoints = rewards.points;
+    let toastTitle = "";
+    let toastDescription = "";
+
+    const challenge = challengesForDisplay.find(c => c.id === challengeId);
+    if (!challenge) return;
+
+    const currentCompletionState = challengeCompletionStates.find(s => s.id === challengeId);
+    const oldCompletedStatus = currentCompletionState ? currentCompletionState.completed : false;
+    const newCompletedStatus = !oldCompletedStatus;
+
+    if (newCompletedStatus) { // Challenge completed just now
+      newPoints += challenge.points;
+      toastTitle = "Challenge Completed!";
+      toastDescription = `You earned ${challenge.points} points.`;
+    } else { // Challenge uncompleted just now
+      newPoints = Math.max(0, newPoints - challenge.points);
+      toastTitle = "Challenge Undone";
+      toastDescription = `Points adjusted.`;
     }
+    
+    setChallengeCompletionStates(prevStates =>
+      prevStates.map(s =>
+        s.id === challengeId ? { ...s, completed: newCompletedStatus } : s
+      )
+    );
+    
+    setRewards({ points: newPoints });
+    toast({ title: toastTitle, description: toastDescription });
   };
 
   return (
@@ -66,7 +87,7 @@ export default function DashboardPage() {
 
       <section>
         <SectionTitle title="Mindfulness Challenges" />
-        <ChallengeList challenges={challenges} onToggleComplete={handleToggleChallengeComplete} />
+        <ChallengeList challenges={challengesForDisplay} onToggleComplete={handleToggleChallengeComplete} />
       </section>
     </div>
   );
